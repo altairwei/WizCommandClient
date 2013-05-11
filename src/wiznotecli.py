@@ -1,3 +1,4 @@
+#/usr/bin/env python
 import xmlrpclib
 import os
 import hashlib
@@ -8,8 +9,53 @@ import StringIO
 import zipfile
 import base64
 import datetime
+import pickle
+import getopt
+import codecs
 reload(sys) 
+UserHome =  os.path.expandvars('$HOME')
+UserDictionary = UserHome + '/.wiznoteuser' 
+
+
 sys.setdefaultencoding('utf8')
+def md5Data(data):
+	m = hashlib.md5()
+	m.update(data)
+	m.digest()
+	return m.hexdigest()
+class WizAccount:
+	def __init__(self,password,userId):
+		self.password = password
+		self.userId = userId
+def checkUserIdVaild(userId):
+	if userId == '':
+		return False
+		pass
+	return True
+account = WizAccount('aa@aa.com','sss')
+if not os.path.exists(UserDictionary):
+	userId = raw_input('WizNote UserId :')
+	if not checkUserIdVaild(userId):
+		print 'User name invalid'
+		sys.exit(0)
+		pass
+	password = raw_input('password:')
+	if password == None or password == '':
+		print 'password is none'
+		sys.exit(0)
+		pass
+	password = 'md5.' + md5Data(password)
+	account.userId = userId
+	account.password = password
+	addAccountFile = open(UserDictionary,'w')
+	pickle.dump(account, addAccountFile, 0)
+	addAccountFile.close()
+else:
+	accountFile = open(UserDictionary,'r')
+	account = pickle.load(accountFile)
+	accountFile.close()
+
+
 
 from wizhelper.WizServerUrl import WizServerUrl
 
@@ -37,11 +83,7 @@ def getToken(loginData):
 def getKbguid(loginData):
 	return loginData['kb_guid']
 
-def md5Data(data):
-	m = hashlib.md5()
-	m.update(data)
-	m.digest()
-	return m.hexdigest()
+
 def md5File(name):
 	m = hashlib. md5()
 	fd = open(name, 'rb')
@@ -82,7 +124,7 @@ class WizDocument:
 def addToken(params, token):
 	params['token'] = token
 
-def uploadFile(filePath):
+def uploadFile(filePath, document_title, document_location):
 	fileExist = os.path.exists(filePath)
 	if not fileExist :
 		print "File not found!"
@@ -92,21 +134,26 @@ def uploadFile(filePath):
 	document.data_md5 = md5File(filePath)
 	document.title = 'aaa'
 	document.document_zip_md5 = document.data_md5;
+	if not document_title == None:
+		document.document_title = document_title
+		pass
+	if not document_location == None:
+		document.document_location = document_location
+		pass
 	#
-	userId = 'yishuiliunian@gmail.com'
-	password = '654321'
+	userId = account.userId
+	password = account.password
 	loginData = accountLogin(userId, password)
 	token = getToken(loginData)
 	kbguid = getKbguid(loginData)
 	kmUrl = loginData['kapi_url']	
 	#
-	kmXmlServer = xmlrpclib.Server(kmUrl,verbose=True)
-	print kmXmlServer
-	#
+	kmXmlServer = xmlrpclib.Server(kmUrl)
+	
 	sizehint = 128*1024
 	fileSize = os.path.getsize(filePath)
 	partCount = fileSize/sizehint+1 if fileSize%sizehint !=0 else fileSize/sizehint
-	print "total count %d" % partCount
+	
 	#
 	file = open(filePath, 'r')
 	position = 0
@@ -114,7 +161,6 @@ def uploadFile(filePath):
 	partSN = 0
 	while not file.tell() - position <= 0:
 		position = file.tell()
-		print position
 		#
 		params ={}
 		addCommonParams(params)
@@ -127,19 +173,21 @@ def uploadFile(filePath):
 		params['part_size']=len(lines)
 		params['obj_guid'] = document.guid
 		params['obj_md5'] = document.data_md5
-		print params
+		
 		addToken(params, token)
-		pdb.set_trace()
+#		pdb.set_trace()
 		code = kmXmlServer.data.upload(params)
 		###
 		lines = file.read(sizehint)
 		partSN += 1
+	print 'Upload File Succeed!'
 	dic = document.toServerDictionary()
 	addCommonParams(dic)
 	addToken(dic, token)
 	dic['with_document_data']=1
 	kmXmlServer.document.postSimpleData(dic)
-def uploadTxtFile(filePath):
+	print 'Upload document info succeed'
+def uploadTxtFile(filePath,document_title,document_location):
 	zipname = 'temp.ziw'
 	e = os.path.exists(zipname)
 	if e:
@@ -148,7 +196,75 @@ def uploadTxtFile(filePath):
 	zipFile.write(filePath,'index.html',zipfile.ZIP_DEFLATED)
 	zipFile.close()
 	try:
-		uploadFile(zipname)
+		uploadFile(zipname,document_title,document_location)
 	finally:
 		os.remove(zipname)
-uploadTxtFile('a.txt')
+
+def usage():
+	print 'WizNotCommoand -f uploadfilepath -l uploadloaction -h help'
+def main():
+	try:
+
+		opts, args = getopt.getopt(sys.argv[1:],'f:l:s:h',['file=','location=','string:','help'])
+		uploadFile = None
+		location = '/My Python Uploaded/'
+		uploadStrings = None
+		for o , a in opts:
+			if o in ('-h','--help'):
+				usage()
+				pass
+			elif o in ('-f', '--file'):
+				uploadFile = a
+				pass
+			elif o in ('-l','--location'):
+				location = a 
+				pass
+			elif o in ('-s', '--string'):
+				uploadStrings = a;
+				pass
+			elif True:
+				usage()
+			pass
+		if uploadFile == None and uploadStrings == None:
+			usage()
+			sys.exit(0)
+			pass
+		if uploadFile:
+			uploadTxtFile(uploadFile,'asdf',location)
+			pass
+		if uploadStrings:
+			tempFilePath = 'temp.txt'
+			if os.path.exists(tempFilePath):
+				os.remove(tempFilePath)
+			tempFile = codecs.open(tempFilePath,'w','utf-8-sig')
+			#pdb.set_trace()
+			try:
+
+				tempFile.write(uploadStrings)
+				tempFile.close()
+				#pdb.set_trace()
+				title = uploadStrings.decode('utf8')
+				if len(title) > 20:
+					title = title[:20]
+				uploadTxtFile(tempFilePath,title, location)
+				os.remove(tempFilePath)
+			except Exception, e:
+				raise
+			else:
+				pass
+			finally:
+				tempFile.close()
+				if os.path.exists(tempFilePath):
+					os.remove(tempFilePath)
+					pass
+				pass
+			pass
+	except Exception, e:
+		raise
+	else:
+		pass
+	finally:
+		pass
+
+main()
+
