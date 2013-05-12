@@ -34,7 +34,7 @@ class WizAccount:
         self.userId = userId
 
 
-def checkUserIdVaild(userId):
+def checkUserIdValid(userId):
     if userId == '':
         return False
         pass
@@ -44,12 +44,12 @@ def checkUserIdVaild(userId):
 account = WizAccount('aa@aa.com', 'sss')
 if not os.path.exists(UserDictionary):
     userId = raw_input('WizNote UserId :')
-    if not checkUserIdVaild(userId):
+    if not checkUserIdValid(userId):
         print 'User name invalid'
         sys.exit(0)
         pass
     password = raw_input('password:')
-    if password == None or password == '':
+    if password is None or password == '':
         print 'password is none'
         sys.exit(0)
         pass
@@ -168,10 +168,10 @@ def uploadFile(filePath, document_title, document_location):
     document.data_md5 = md5File(filePath)
     document.title = 'aaa'
     document.document_zip_md5 = document.data_md5;
-    if not document_title == None:
+    if not document_title is None:
         document.document_title = document_title
         pass
-    if not document_location == None:
+    if not document_location is None:
         document.document_location = document_location
         pass
     #
@@ -264,7 +264,7 @@ def main():
             elif True:
                 usage()
             pass
-        if uploadFile == None and uploadStrings == None:
+        if uploadFile is None and uploadStrings is None:
             usage()
             sys.exit(0)
             pass
